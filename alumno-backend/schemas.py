@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from typing import List
 
 class AlumnoBase(BaseModel):
     nombre: str
@@ -17,3 +18,11 @@ class AlumnoResponse(AlumnoBase):
 
     class Config:
         from_attributes = True
+
+# Schema para respuesta paginada
+class PaginatedResponse(BaseModel):
+    items: List[AlumnoResponse]
+    total: int
+    page: int
+    limit: int
+    total_pages: int

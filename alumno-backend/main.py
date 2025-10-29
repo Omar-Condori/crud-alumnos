@@ -1,11 +1,13 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from typing import List
+from sqlalchemy import or_
+from typing import List, Optional
+from math import ceil
 
 from database import engine, get_db, Base
 from models import Alumno
-from schemas import AlumnoCreate, AlumnoUpdate, AlumnoResponse
+from schemas import AlumnoCreate, AlumnoUpdate, AlumnoResponse, PaginatedResponse
 
 # Crear las tablas en la base de datos
 Base.metadata.create_all(bind=engine)
@@ -48,11 +50,51 @@ def crear_alumno(alumno: AlumnoCreate, db: Session = Depends(get_db)):
     db.refresh(nuevo_alumno)
     return nuevo_alumno
 
-# READ - Obtener todos los alumnos
-@app.get("/alumnos", response_model=List[AlumnoResponse])
-def listar_alumnos(db: Session = Depends(get_db)):
-    alumnos = db.query(Alumno).all()
-    return alumnos
+# READ - Obtener todos los alumnos con paginación y búsqueda
+@app.get("/alumnos", response_model=PaginatedResponse)
+def listar_alumnos(
+    page: int = Query(1, ge=1, description="Número de página"),
+    limit: int = Query(10, ge=1, le=100, description="Elementos por página"),
+    search: Optional[str] = Query(None, description="Buscar por nombre, apellido o carrera"),
+    carrera: Optional[str] = Query(None, description="Filtrar por carrera"),
+    db: Session = Depends(get_db)
+):
+    # Query base
+    query = db.query(Alumno)
+    
+    # Aplicar búsqueda
+    if search:
+        search_filter = f"%{search}%"
+        query = query.filter(
+            or_(
+                Alumno.nombre.ilike(search_filter),
+                Alumno.apellido.ilike(search_filter),
+                Alumno.grado_ciclo.ilike(search_filter),
+                Alumno.carrera.ilike(search_filter)
+            )
+        )
+    
+    # Aplicar filtro por carrera
+    if carrera:
+        query = query.filter(Alumno.carrera == carrera)
+    
+    # Contar total de registros
+    total = query.count()
+    
+    # Calcular offset y aplicar paginación
+    offset = (page - 1) * limit
+    alumnos = query.offset(offset).limit(limit).all()
+    
+    # Calcular total de páginas
+    total_pages = ceil(total / limit) if total > 0 else 1
+    
+    return {
+        "items": alumnos,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "total_pages": total_pages
+    }
 
 # READ - Obtener un alumno por ID
 @app.get("/alumnos/{alumno_id}", response_model=AlumnoResponse)
@@ -89,4 +131,4 @@ def eliminar_alumno(alumno_id: int, db: Session = Depends(get_db)):
 
 @app.get("/")
 def root():
-    return {"message": "API CRUD Alumnos - FastAPI + PostgreSQL"}
+    return {"message": "API CRUD Alumnos - FastAPI + PostgreSQL con Paginación y Búsqueda"}

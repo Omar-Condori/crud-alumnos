@@ -2,8 +2,19 @@ import axios from 'axios';
 
 const API_URL = 'http://localhost:8000';
 
-export const getAlumnos = async () => {
-  const response = await axios.get(`${API_URL}/alumnos`);
+// Obtener alumnos con paginación y búsqueda
+export const getAlumnos = async (page = 1, limit = 10, search = '', carrera = '') => {
+  let url = `${API_URL}/alumnos?page=${page}&limit=${limit}`;
+  
+  if (search) {
+    url += `&search=${encodeURIComponent(search)}`;
+  }
+  
+  if (carrera) {
+    url += `&carrera=${encodeURIComponent(carrera)}`;
+  }
+  
+  const response = await axios.get(url);
   return response.data;
 };
 
